@@ -38,5 +38,6 @@ jobs:
              --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
              --platform linux/arm64,linux/amd64 \
              --tag $IMAGE_ID:$VERSION \
+             --tag $IMAGE_ID:latest \
              --cache-from=type=registry,ref=$IMAGE_ID:cache \
              --cache-to=type=registry,ref=$IMAGE_ID:cache,mode=max
