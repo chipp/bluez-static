@@ -27,7 +27,7 @@ jobs:
       - name: Build and push image
         run: |
           IMAGE_ID=ghcr.io/chipp/bluez.static.${{ matrix.tag }}
-          VERSION=$(cat build.sh | grep "BLUEZ_VER.*BLUEZ_SHA" | sed -e 's,BLUEZ_VER="\(.*\)" *BLUEZ_SHA=".*",\1,' | tr -d '\n')
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
 
           echo IMAGE_ID=$IMAGE_ID
           echo VERSION=$VERSION
