@@ -1,0 +1,42 @@
+name: Docker
+
+on:
+  push:
+    tags:
+       - '*'
+
+jobs:
+  build-platforms:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    strategy:
+      matrix:
+        tag: [x86_64_musl, arm64_musl]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Log into registry
+        run: echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        run: |
+          IMAGE_ID=ghcr.io/chipp/bluez.static.${{ matrix.tag }}
+          VERSION=$(cat build.sh | grep "BLUEZ_VER.*BLUEZ_SHA" | sed -e 's,BLUEZ_VER="\(.*\)" *BLUEZ_SHA=".*",\1,' | tr -d '\n')
+
+          echo IMAGE_ID=$IMAGE_ID
+          echo VERSION=$VERSION
+
+          docker buildx build . \
+             --push \
+             --build-arg VARIANT="${{ matrix.tag }}" \
+             --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+             --platform linux/arm64,linux/amd64 \
+             --tag $IMAGE_ID:$VERSION \
+             --cache-from=type=registry,ref=$IMAGE_ID:cache \
+             --cache-to=type=registry,ref=$IMAGE_ID:cache,mode=max
