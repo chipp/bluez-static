@@ -6,13 +6,20 @@ on:
        - '*'
 
 jobs:
-  push:
-    runs-on: ubuntu-latest
+  build-platforms:
     if: github.event_name == 'push'
 
     strategy:
       matrix:
-        tag: [x86_64_musl, arm64_musl]
+        variant: [x86_64_musl, arm64_musl]
+        host: [arm64, amd64]
+        include:
+          - host: arm64
+            os: ubuntu-24.04-arm
+          - host: amd64
+            os: ubuntu-24.04
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v2
@@ -24,9 +31,12 @@ jobs:
         id: buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Expose GitHub Runtime
+        uses: crazy-max/ghaction-github-runtime@v1
+
       - name: Build and push image
         run: |
-          IMAGE_ID=ghcr.io/chipp/bluez.static.${{ matrix.tag }}
+          IMAGE_ID=ghcr.io/chipp/bluez.static.${{ matrix.variant }}
           VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
 
           echo IMAGE_ID=$IMAGE_ID
@@ -34,10 +44,40 @@ jobs:
 
           docker buildx build . \
              --push \
-             --build-arg VARIANT="${{ matrix.tag }}" \
+             --platform linux/${{ matrix.host }} \
+             --cache-from=type=gha,scope=${{ matrix.variant }}-${{ matrix.host }} \
+             --cache-to=type=gha,scope=${{ matrix.variant }}-${{ matrix.host }},mode=max \
+             --build-arg VARIANT="${{ matrix.variant }}" \
              --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
-             --platform linux/arm64,linux/amd64 \
+             --tag $IMAGE_ID:$VERSION-linux-${{ matrix.host }}
+
+  merge-multi-arch:
+    runs-on: ubuntu-24.04-arm
+    needs: build-platforms
+    strategy:
+      matrix:
+        variant: [x86_64_musl, arm64_musl]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Log into registry
+        run: echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Merge and push
+        run: |
+          IMAGE_ID=ghcr.io/chipp/bluez.static.${{ matrix.variant }}
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+
+          echo IMAGE_ID=$IMAGE_ID
+          echo VERSION=$VERSION
+
+          docker buildx imagetools create \
              --tag $IMAGE_ID:$VERSION \
              --tag $IMAGE_ID:latest \
-             --cache-from=type=registry,ref=$IMAGE_ID:cache \
-             --cache-to=type=registry,ref=$IMAGE_ID:cache,mode=max
+             $IMAGE_ID:$VERSION-linux-amd64 \
+             $IMAGE_ID:$VERSION-linux-arm64

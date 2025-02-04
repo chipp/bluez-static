@@ -9,13 +9,11 @@ arm64:
 	docker build . \
 		--tag ${IMAGE_ID}:latest \
 		--build-arg VARIANT=arm64_musl \
-		--load \
-		--cache-from=type=registry,ref=${IMAGE_ID}:cache
+		--load
 
 amd64: IMAGE_ID = ghcr.io/chipp/bluez.static.x86_64_musl
 amd64:
 	docker build . \
 		--tag ${IMAGE_ID}:latest \
 		--build-arg VARIANT=x86_64_musl \
-		--load \
-		--cache-from=type=registry,ref=${IMAGE_ID}:cache
+		--load
